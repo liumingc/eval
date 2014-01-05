@@ -8,10 +8,6 @@ env is
   (a . 3) (b . 4) (c . 5) ...)
 |#
 
-;;; env ;;;
-;;; use define and push-args are different
-;;;  define will modify the global env
-;;;  push-args will parse a new env as an argument
 (define env0 (mcons 'env '()))
 
 ;; (ext-env e0 (a1 a2) (v1 v2))
@@ -75,10 +71,6 @@ env is
       (if (null? x)
           '()
           (mcdr x)))))
-
-;;; lambda ;;;
-
-
 
 ;;; evaluator ;;;
 #|
@@ -246,18 +238,12 @@ env is
       (parse-seq exprs))))
 
 ;; (fn (a1 a2 ...) b1 b2 ...)
-;; structure: fn-params, (begin fn-body), fn-env
+;; (fn fn-params fn-body fn-env)
 (define (parse-fn expr)
   (lambda (env)
     (let ([f (list 'fn (cadr expr) (parse (cons 'begin (cddr expr))) env)])
       f)))
 
-;; define a function to handle fields?
-;; (setf obj field val)
-;; (getf obj field)
-;; what is the object?
-
-;; (fn fn-params fn-body fn-env)
 (define (fn-params fn-obj)
   (list-ref fn-obj 1))
 
@@ -275,7 +261,6 @@ env is
       (lambda (env)
         (let ([fo (fp env)])
           ((fn-body fo)
-;;		   env0))))))
            (ext-env (fn-env fo)
                     (fn-params fo)
                     (map (lambda (x)
@@ -306,4 +291,8 @@ env is
 
 (show-env (ext-env env0 '(x y z) '(0 1 2)))
 |#
+;; cons/car/cdr can be done by:
+;; (define cons (fn (x y) (fn (p) (p x y))))
+;; (define car (fn (p) (p (fn (x y) x))))
+;; (define cdr (fn (p) (p (fn (x y) y))))
 (repl)
