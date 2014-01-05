@@ -1,64 +1,80 @@
 #lang racket
 
-;; (require compatibility/mlist)
+(require compatibility/mlist)
 
 #|
 env is
 (env
-  (a 3) (b 4) (c 5) ...)
+  (a . 3) (b . 4) (c . 5) ...)
 |#
 
 ;;; env ;;;
+;;; use define and push-args are different
+;;;  define will modify the global env
+;;;  push-args will parse a new env as an argument
 (define env0 (mcons 'env '()))
 
+;; (ext-env e0 (a1 a2) (v1 v2))
 (define ext-env
+  (lambda (e0 params vals)
+    (let ([env (mcdr e0)])
+      (define (f vars vals)
+        (if (not (null? vars))
+            (mcons (mcons (car vars)
+                          (car vals))
+                   (f (cdr vars)
+                      (cdr vals)))
+            env))
+      (mcons 'env (f params vals)))))
+
+(define def-var
   (lambda (e0 var val)
     (set-mcdr! e0
-               (mcons (mcons var val) (mcdr e0)))))
+               (mcons (mcons var val) (mcdr e0)))
+    (printf "def ~a to ~a~n" var val)
+    'def-ok))
 
 (define set-var
   (lambda (e0 var val)
     (let ([p (lookup0 e0 var)])
       (if (not (null? p))
-        (begin
-          (set-mcdr! p val)
-          (printf "set ~a to ~a~n" var val))
-        (begin
-          (printf "set ~a failed~n" var)
-          (void))))))
+          (begin
+            (set-mcdr! p val)
+            (printf "set ~a to ~a~n" var val)
+            'set-ok)
+          (begin
+            ;;(printf "set ~a failed~n" var)
+            'set-failed)))))
 
 (define show-env
   (lambda (e0)
-    (letrec ([dat (mcdr e0)]
-             [f (lambda (x)
-                  (if (null? x)
-                    (void)
-                    (begin
-                      (display (mcar x))
-                      (newline)
-                      (f (mcdr x)))))])
-      (f dat))))
+    (printf ">>> ENV >>>~n")
+    (mmap (lambda (x)
+            (display x)
+            (newline))
+          (mcdr e0))
+    (printf "<<< ENV <<<~n")))
 
 (define lookup0
   (lambda (e0 var)
     (define f
       (lambda (x)
         (if (null? x)
-          (begin
-            (printf "lookup ~a failed~n" var)
-            '())
-          (let ([p (mcar x)])
-            (if (equal? (mcar p) var)
-              p
-              (f (mcdr x)))))))
+            (begin
+              (printf "lookup ~a failed~n" var)
+              '())
+            (let ([p (mcar x)])
+              (if (equal? (mcar p) var)
+                  p
+                  (f (mcdr x)))))))
     (f (mcdr e0))))
 
 (define lookup
   (lambda (e0 var)
     (let ([x (lookup0 e0 var)])
       (if (null? x)
-        '()
-        (mcdr x)))))
+          '()
+          (mcdr x)))))
 
 ;;; lambda ;;;
 
@@ -66,7 +82,7 @@ env is
 
 ;;; evaluator ;;;
 #|
-(define basic-form
+(basic-form
   (define var val)
   (set var val)
   (quote dat)
@@ -79,7 +95,7 @@ env is
 (define repl
   (lambda ()
     (prompt)
-    (usr-print (eval (read) env0))
+    (usr-print (eval. (read) env0))
     (repl)))
 
 (define prompt
@@ -89,15 +105,15 @@ env is
 (define usr-print
   (lambda (expr)
     (if (void? expr)    ;; #<void>, how to compare?
-      (begin
-        (newline)
-        (newline))
-      (begin
-        (display expr)
-        (newline)
-        (newline)))))
+        (begin
+          (newline)
+          (newline))
+        (begin
+          (display expr)
+          (newline)
+          (newline)))))
 
-(define eval
+(define eval.
   (lambda (expr env)
     ((parse expr) env)))
 
@@ -119,13 +135,13 @@ env is
       [(begin? expr)
        (parse-begin expr)]
       [(fn? expr)
-       (nop expr)]
+       (parse-fn expr)]
       ;; make print as built-in, to make debug easier
       ;; print behaves different with scheme's print
       [(print? expr)
        (parse-print expr)]
       [else ;; fn-call ...
-        (nop expr)])))
+       (parse-fn-call expr)])))
 
 (define atom?
   (lambda (expr)
@@ -187,17 +203,17 @@ env is
 
 (define parse-define
   (lambda (expr)
-    (lambda (env)
-      (let ([var (list-ref expr 1)]
-            [val (eval (list-ref expr 2) env)])
-        (ext-env env var val)))))
+    (let ([var (list-ref expr 1)]
+          [val (parse (list-ref expr 2))])
+      (lambda (env)
+        (def-var env var (val env))))))
 
 (define parse-set
   (lambda (expr)
-    (lambda (env)
-      (let ([var (list-ref expr 1)]
-            [val (eval (list-ref expr 2) env)])
-        (set-var env var val)))))
+    (let ([var (list-ref expr 1)]
+          [val (parse (list-ref expr 2))])
+      (lambda (env)
+        (set-var env var (val env))))))
 
 (define parse-quote
   (lambda (expr)
@@ -212,38 +228,82 @@ env is
           [else-clause (parse (list-ref expr 3))])
       (lambda (env)
         (if (equal? (test-clause env) #f)
-          (else-clause env)
-          (then-clause env))))))
+            (else-clause env)
+            (then-clause env))))))
 
 ;; (begin e1 e2 ...)
 (define parse-begin
   (lambda (expr)
     (let ([exprs (map parse (cdr expr))])
-      (letrec ([f (lambda (exprs)
-                    (if (null? exprs)
-                      (lambda (env) (void)) ;;; todo
-                      (lambda (env)
-                        ((car exprs) env)
-                        ((f (cdr exprs)) env))))])
-        (lambda (env)
-          ((f exprs) env))))))
+      (define parse-seq
+        (lambda (seqs)
+          (if (null? (cdr seqs))
+              (car seqs)
+              (let ([rest (parse-seq (cdr seqs))])
+                (lambda (env)
+                  ((car seqs) env)
+                  (rest env))))))
+      (parse-seq exprs))))
+
+;; (fn (a1 a2 ...) b1 b2 ...)
+;; structure: fn-params, (begin fn-body), fn-env
+(define (parse-fn expr)
+  (lambda (env)
+    (let ([f (list 'fn (cadr expr) (parse (cons 'begin (cddr expr))) env)])
+      f)))
+
+;; define a function to handle fields?
+;; (setf obj field val)
+;; (getf obj field)
+;; what is the object?
+
+;; (fn fn-params fn-body fn-env)
+(define (fn-params fn-obj)
+  (list-ref fn-obj 1))
+
+(define (fn-body fn-obj)
+  (list-ref fn-obj 2))
+
+(define (fn-env fn-obj)
+  (list-ref fn-obj 3))
+
+;; (f a b c)
+(define parse-fn-call
+  (lambda (expr)
+    (let ([fp (parse (car expr))]
+          [args (map parse (cdr expr))])
+      (lambda (env)
+        (let ([fo (fp env)])
+          ((fn-body fo)
+;;		   env0))))))
+           (ext-env (fn-env fo)
+                    (fn-params fo)
+                    (map (lambda (x)
+                           (x env)) args))))))))
 
 (define parse-print
   (lambda (expr)
-    (lambda (env)
-      (map display (cdr expr))
-      (void))))
+    (let ([elems (map (lambda (x)
+                        (parse x))
+                      (cdr expr))])
+      (lambda (env)
+        (map (lambda (x)
+               (display (x env)))
+             elems)
+		(void)))))
 
 ;;; test ;;;
 #|
-(ext-env env0 'a 3)
-(ext-env env0 'b 4)
-(ext-env env0 'c 5)
+(def-var env0 'a 3)
+(def-var env0 'b 4)
+(def-var env0 'c 5)
 
 (display (lookup env0 'c))
 (newline)
 (display (lookup env0 'd))
 (set-var env0 'a 7)
 (show-env env0)
+
+(show-env (ext-env env0 '(x y z) '(0 1 2)))
 |#
 (repl)
