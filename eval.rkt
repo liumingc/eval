@@ -1,5 +1,7 @@
 #lang racket
 
+;; use macros, then use record, record-case to make code more readable
+
 (require compatibility/mlist)
 
 #|
