@@ -15,7 +15,7 @@
 - def
 - set!
 - if
-- fn
+- fn  
 lambda 写起来太麻烦了，使用fn。
 - quote
 - quasiquote, unquote, splice-unquote
@@ -29,7 +29,7 @@ lambda 写起来太麻烦了，使用fn。
 
 #### 参考书目
 
-- SICP
+- SICP  
 抽象屏障当然重要，但是感觉书中的例子，也太啰嗦了，可读性也没有太大的提高。
 不如dybvig使用record、record-case写的简洁、易读。
 - 编译器原理
