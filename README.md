@@ -33,7 +33,7 @@
 - fn  
 lambda 写起来太麻烦了，使用fn。
 - quote
-- quasiquote, unquote, splice-unquote
+- quasiquote, unquote, unquote-splicing
 - begin
 - call/cc
 - defmacro
