@@ -1,5 +1,9 @@
 ;;; add primitive proc
 ;;; add begin, let form
+
+(use-modules (ice-9 format))
+(use-modules (ice-9 pretty-print))
+
 (define *debug* #f)
 
 
@@ -21,7 +25,6 @@
   (syntax-rules ()
     ((_ fields var body ...)
      (apply (lambda fields body ...) var))))
-
 
 
 (define-syntax record-case
@@ -77,8 +80,10 @@
   (lambda ()
     (set! env
 	  (extend env
-		  '(+ - * / cons car cdr)
-		  (list + - * / cons car cdr)))))
+		  '(+ - * / cons car cdr
+		      pair? = < zero?)
+		  (list + - * / cons car cdr
+			pair? = < zero?)))))
 
 (init)
 
@@ -108,7 +113,8 @@
 ;;; (arg x)              --- rib <- (cons reg[a] rib)
 ;;; (apply)
 ;;; (return)
-;;; + (call) calls primitive procedure
+;;; + (read)
+;;; + (write)
 
 
 ;;; compile, name comp to avoid name conflict.
@@ -121,8 +127,8 @@
       (record-case x
 		   (quote (obj)
 			  `(const ,obj ,next))
-		   (lambda (vars body)
-		     `(close ,vars ,(comp body '(return)) ,next))
+		   (lambda (vars . body)
+		     (list 'close vars (comp `(begin ,@body) '(return)) next))
 		   (if (test then else)
 		       (comp test
 			     `(test
@@ -147,6 +153,13 @@
 		   (let (binds . exps)
 		     (comp `((lambda ,(map car binds)
 			       (begin ,@exps)) ,@(map cadr binds)) next))
+		   (let* (binds . exps)
+		     (comp `((lambda ,(reverse (map car binds))
+			       (begin ,@exps)) ,@(reverse (map cadr binds))) next))
+		   (read ()
+			 (list 'read next))
+		   (write (obj)
+			  (list 'write obj next))
 		   (t
 		    (let loop ((args (cdr x))
 			       (c (comp (car x) '(apply))))
@@ -164,14 +177,27 @@
   (lambda (x)
     (eq? (car x) 'return)))
 
+(define decode
+  (let ((ninst 0))
+    (lambda (x)
+      (set! ninst (+ ninst 1))
+      (display "code$ ")
+      (case (car x)
+	((close test conti nuate frame arg apply return read)
+	 (print (car x)))
+	((halt)
+	 (print (car x))
+	 (format #t "~a instructions~%" ninst))
+	((const refer assign write)
+	 (format #t "~a ~a~%" (list-ref x 0) (list-ref x 1)))))))
+
 ;;; SECD machine? I don't known semantics.
 ;;; The dragon book don't mention this.
 (define VM
   (lambda (a x e r s)
     (when *debug*
-	  (display "code$ ")
 	  #;(print x)
-	  (print (car x))
+	  (decode x)
 	  )
     (record-case x
 		 (halt () a)
@@ -200,11 +226,18 @@
 			  (record (x e rib s) s
 				  (VM (apply a r) x e rib s)))
 			 (else
+					;(format #t "rib: ~a~%" r)
 			  (record (vars body e) a
 				  (VM a body (extend e vars r) '() s)))))
 		 (return ()
 			 (record (x e r s) s
-				 (VM a x e r s))))))
+				 (VM a x e r s)))
+		 (read (x)
+		       (VM (read) x e r s))
+		 (write (obj x)
+			(display obj)
+			(VM a x e r s))
+		 )))
 
 
 (define closure
@@ -222,5 +255,29 @@
 
 (define go
   (lambda (x)
-    (VM '() (comp x '(halt)) env '() '())))
+    (let ((code (comp x '(halt))))
+      (if *debug*
+	  (pretty-print code))
+      (VM '() code env '() '()))))
+
+#|
+(go '(let ((f #f))
+       (set! f (lambda (sum n)
+		 (if (= n 0)
+		     sum
+		     (f (+ sum n) (- n 1)))))
+       (f 0 10)))
+|#
+
+(go '(let ((counter 0))
+       (let* ((yin
+	       ((lambda (cc) (write "@") cc)
+		(call/cc (lambda (c) c))))
+	      (yang
+	       ((lambda (cc) (write "*") cc)
+		(call/cc (lambda (c) c)))))
+	 (set! counter (+ counter 1))
+	 (if (< counter 30)
+	     (yin yang)
+	     "end"))))
 
