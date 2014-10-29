@@ -1,7 +1,8 @@
 (use-modules (ice-9 format))
 #;(use-modules (ice-9 pretty-print))
 
-(load "stack-v3.scm")
+;;; ifndef *test-file*; then setq *test-file* "stack-v3.scm"; fi
+(load "stack-v4.scm")
 
 (define test-data
   '((3 3)
@@ -31,10 +32,10 @@
     (let ((x (go exp)))
       (if (equal? x res)
 	  (begin
-	    (format #t "~a -- passed~%" exp)
+	    (format #t "~s -- passed~%" exp)
 	    #t)
 	  (begin
-	    (format #t "~a ~s -- failed~%" exp x)
+	    (format #t "~s ~s -- failed~%" exp x)
 	    #f)))))
 
 (define test-case
@@ -54,5 +55,5 @@
 	      passed tot))))
 
 
-(format #t "ello~%")
+(format #t "hello~%")
 (test-case)
