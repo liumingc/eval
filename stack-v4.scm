@@ -6,7 +6,7 @@
 (load "utils.scm")
 (load "stack.scm")
 
-(define *debug* #f)
+(define *debug* #t)
 
 ;;; x -> expr, b -> bound-vars
 (define find-free
@@ -199,7 +199,7 @@
 (define continuation
   (lambda (s)
     (closure
-     (list 'refer-local 0 (list 'nuate (save-stack s) '(return)))
+     (list 'refer-local 0 (list 'nuate (save-stack s) '(return 0)))
      0
      0)))
 

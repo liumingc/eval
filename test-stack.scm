@@ -14,6 +14,7 @@
     ((if #f "true" "false") "false")
     ((if #t "true" "false") "true")
     ((if 0 "true" "false") "true")
+    ((call/cc (lambda (k) (k "conti"))) "conti")
 #;
     ((let ((kons (lambda (ka kd)
     (lambda (key)

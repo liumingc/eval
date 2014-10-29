@@ -16,10 +16,10 @@
 
 ;;; continuation has to copy the whole stack
 (define (save-stack s)
-  (let ((v (make-vector stack-sz)))
+  (let ((v (make-vector s)))
     (let copy ((i 0))
       (when (< i s)
-	(vector-set! v i (vector-ref s i))
+	(vector-set! v i (vector-ref stack i))
 	(copy (1+ i))))
     v))
 

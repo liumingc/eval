@@ -6,7 +6,7 @@
 (load "utils.scm")
 (load "stack.scm")
 
-(define *debug* #f)
+(define *debug* #t)
 
 
 ;;; env utilities
@@ -16,16 +16,6 @@
 (define extend
   (lambda (env vars)
     (cons vars env)))
-
-(define lookup
-  (lambda (access e)
-    (let ((vars (list-ref e (car access))))
-      (let f ((r (car e))
-	      (elt (cdr access)))
-	(cond
-	 ((zero? elt) r)
-	 (else (f (cdr r) (- elt 1))))))))
-
 
 (define comp-lookup
   (lambda (var e fn)
@@ -86,10 +76,14 @@
     (format #t "$ ~s~%" op)))
 
 ;;; rib is in the stack
+(define nip 100)
 (define VM
   (lambda (a x e s)
     (if *debug*
 	(decode x))
+    (if (= nip 0)
+	"exceeds"
+	(set! nip (1- nip)))
     (record-case x
 		 (halt () a)
 		 (refer (n m x)
@@ -102,8 +96,8 @@
 		       (VM a (if a then else) e s))
 		 (conti (x)
 			(VM (continuation s) x e s))
-		 (nuate (s var)
-			(VM (index (find-link n e) m) '(return) e (restore-stack s)))
+		 (nuate (s x)
+			(VM a x e (restore-stack s)))
 		 (frame (ret x)
 			(VM a x e (push ret (push e s))))
 		 (arg (x)
@@ -125,7 +119,7 @@
 (define continuation
   (lambda (s)
     (closure
-     (list 'refer 0 0 (list 'nuate (save-stack s) '(return)))
+     (list 'refer 0 0 (list 'nuate (save-stack s) '(return 0)))
      '())))
 
 (define go
