@@ -17,6 +17,7 @@
     ((_ fields var body ...)
      (apply (lambda fields body ...) var))))
 
+#|
 (define-syntax record-case
   (lambda (exp)
     (syntax-case exp ()
@@ -38,4 +39,24 @@
 			#`(((eqv? (car x) 'k)
 			    (record fields (cdr x) body ...))
 			   #,@(f (car c2) (cdr c2)))))))))))))
+|#
 
+(define-syntax record-case
+  (lambda (x)
+    (syntax-case x ()
+      ((_ var c1 c2 ...)
+       (let f ((cl #'c1)
+               (crest #'(c2 ...)))
+         (if (null? crest)
+             (syntax-case cl (else)
+               ((else e1 e2 ...)
+                #'(begin e1 e2 ...))
+               ((kw (a1 ...) e1 e2 ...)
+                #'(if (eq? 'kw (car var))
+                      (record (a1 ...) (cdr var) e1 e2 ...))))
+             (with-syntax ((rest (f (car crest) (cdr crest))))
+                          (syntax-case cl ()
+                            ((kw (a1 ...) e1 e2 ...)
+                             #'(if (eq? 'kw (car var))
+                                   (record (a1 ...) (cdr var) e1 e2 ...)
+                                   rest))))))))))
