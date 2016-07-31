@@ -60,3 +60,32 @@
                              #'(if (eq? 'kw (car var))
                                    (record (a1 ...) (cdr var) e1 e2 ...)
                                    rest))))))))))
+
+#|
+; this version works too. at first i dont know how it works, but now i do.
+; inside template, a var is a binding/reference/pattern-variable, otherwise it will signal an error.
+(define-syntax record-case
+  (lambda (x)
+    (define build-clause
+      (lambda (x clause clause*)
+	(if (null? clause*)
+	    (syntax-case clause (else)
+	      ((else e1 e2 ...)
+	       #'(begin e1 e2 ...))
+	      ((kw (arg ...) e1 e2 ...)
+	       #'(let ((k (car x)))
+		   (if (eq? k 'kw)
+		       (apply (lambda (arg ...) e1 e2 ...) (cdr x))
+		       (printf "no match ~s" x)))))
+	    (with-syntax
+	     ([x x] [crest (build-clause x (car clause*) (cdr clause*))])
+	     (syntax-case clause (else)
+	       ((kw (arg ...) e1 e2 ...)
+		#'(let ((k (car x)))
+		    (if (eq? k 'kw)
+			(apply (lambda (arg ...) e1 e2 ...) (cdr x))
+			crest))))))))
+    (syntax-case x ()
+      [(_ x m1 m2 ...)
+       (build-clause #'x #'m1 #'(m2 ...))])))
+|#
